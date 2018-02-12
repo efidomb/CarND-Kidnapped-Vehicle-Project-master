@@ -24,7 +24,7 @@ void ParticleFilter::init(double x, double y, double theta, double std[]) {
 	//   x, y, theta and their uncertainties from GPS) and all weights to 1.
 	// Add random Gaussian noise to each particle.
 	// NOTE: Consult particle_filter.h for more information about this method (and others in this file).
-	num_particles = 1000;
+	num_particles = 200;
 	default_random_engine gen;
 	double std_x, std_y, std_theta;
 	std_x = std[0];
@@ -72,9 +72,14 @@ void ParticleFilter::prediction(double delta_t, double std_pos[], double velocit
 	for (int i = 0; i < num_particles; i++) {
 		Particle particle = particles[i];
 		double theta = particle.theta;
-		particle.x += (velocity / yaw_rate) * (sin(theta) + (yaw_rate * delta_t) - sin(theta)) + x_noise(gen);
-		particle.y += (velocity / yaw_rate) * (cos(theta) - cos(theta + (yaw_rate * delta_t))) + y_noise(gen);
-		particle.theta += yaw_rate * delta_t + theta_noise(gen);
+		if (yaw_rate == 0) {
+			particle.x += velocity * delta_t;
+		}
+		else {
+			particle.x += (velocity / yaw_rate) * (sin(theta + yaw_rate * delta_t) - sin(theta)) + x_noise(gen);
+			particle.y += (velocity / yaw_rate) * (cos(theta) - cos(theta + (yaw_rate * delta_t))) + y_noise(gen);
+			particle.theta += yaw_rate * delta_t + theta_noise(gen);
+		}
 		// I'm not sure what noise I should add here, if at all
 		particles[i] = particle;
 	}
@@ -99,10 +104,6 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 	//   and the following is a good resource for the actual equation to implement (look at equation 
 	//   3.33
 	//   http://planning.cs.uiuc.edu/node99.html
-
-	for (int i = 0; i < map_landmarks.landmark_list.size(); i++) {
-		Map::single_landmark_s landmark = map_landmarks.landmark_list[i];
-	}
 
 	for (int i = 0; i < particles.size(); i++) {
 		Particle particle = particles[i];
@@ -131,11 +132,11 @@ void ParticleFilter::updateWeights(double sensor_range, double std_landmark[],
 			}
 		}
 		double weight = 1.0;
+		double gauss_norm = (1 / (2 * M_PI * std_landmark[0] * std_landmark[1]));
 		for (int j = 0; j < particle.associations.size(); j++) {			
 			int landmark_id = particle.associations[j];
 			LandmarkObs landmarkb = observations[j];
 			Map::single_landmark_s landmark = map_landmarks.landmark_list[landmark_id - 1];
-			double gauss_norm = (1 / (2 * M_PI * std_landmark[0] * std_landmark[1]));
 			double exponent = (pow(particle.sense_x[j] - landmark.x_f, 2)) / (2 * pow(std_landmark[0], 2)) + (pow(particle.sense_y[j] - landmark.y_f, 2)) / (2 * pow(std_landmark[1], 2));
 			weight = weight * gauss_norm * exp(-exponent);
 		}
